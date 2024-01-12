@@ -18,23 +18,7 @@ class LoginView(APIView):
         email = request.data.get('email')
         password = request.data.get('password')
 
-      # Original plaintext password
-        plain_password = "1234"
-
-        hashed_password_django = make_password(plain_password, hasher='pbkdf2_sha256')
-
-# Manually provided hashed password
-        hashed_password_provided = "pbkdf2_sha256$260000$KwXrv63XakQVAouiQfCu92$UoRAALfo6z6STL0b6GfNiPH4Ptyz6uRlFl8cfjSEQGc="
-
-# Check if the two hashed passwords match
-        password_matches = check_password(hashed_password_django, plain_password)
-
-        if password_matches:
-          print("Password is correct!")
-        else:
-          print("Password is incorrect.")
-
-        # Use Django's authenticate function
+        # Authenticate using Django's built-in function
         user = authenticate(request, email=email, password=password)
 
         if user:
