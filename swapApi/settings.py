@@ -30,7 +30,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework.authtoken',
     'corsheaders',
-     'knox',
+    'knox',
 ]
 
 MIDDLEWARE = [
@@ -50,7 +50,8 @@ ROOT_URLCONF = 'swapApi.urls'
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework.authentication.TokenAuthentication',
-        # ... other authentication classes
+        'knox.auth.TokenAuthentication',
+
     ),
 }
 

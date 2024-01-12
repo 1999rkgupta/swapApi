@@ -24,3 +24,6 @@ class UserSerializer(serializers.ModelSerializer):
 
     # Add validation for other fields as needed
 
+class EmailPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField()
