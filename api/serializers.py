@@ -1,29 +1,32 @@
 from rest_framework import serializers
-from .models import User
+from .models import CustomUser
+from django.db import models  
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
-        model = User
-        fields = ['id', 'name', 'mobile', 'email', 'password', 'role', 'creationDate', 'city']  # Include id and city
+        model = CustomUser
+        fields = '__all__'
         extra_kwargs = {'password': {'write_only': True}}
 
-    # ... other methods (unchanged)
-
-
     def create(self, validated_data):
-        user = User.objects.create_user(**validated_data)
+        user = CustomUser.objects.create_user(**validated_data)
         return user
 
-    # Optional validation examples (adjust as needed)
-    def validate_email(self, value):
-        if User.objects.filter(email=value).exists():
-            raise serializers.ValidationError("Email is already taken.")
-        elif not value.endswith("@gmail.com"):  # Replace with your domain
-            raise serializers.ValidationError("Email must be a valid gmail.com address.")
-        return value
-
-    # Add validation for other fields as needed
-
-class EmailPasswordSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+class LoginSerializer(serializers.Serializer):
+    email_or_mobile = serializers.CharField()
     password = serializers.CharField()
+
+    def validate(self, data):
+        email_or_mobile = data.get('email_or_mobile')
+        password = data.get('password')
+
+        user = CustomUser.objects.filter(
+            models.Q(email=email_or_mobile) | models.Q(mobile=email_or_mobile)
+        ).first()
+
+        if user and user.check_password(password):
+            data['user'] = user
+        else:
+            raise serializers.ValidationError("Invalid credentials")
+
+        return data
