@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import CustomUser
 from django.contrib.auth import authenticate
 from .backends import EmailOrMobileBackend
+from django.db import IntegrityError
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -10,8 +11,15 @@ class UserSerializer(serializers.ModelSerializer):
         extra_kwargs = {'password': {'write_only': True}}
 
     def create(self, validated_data):
-        user = CustomUser.objects.create_user(**validated_data)
-        return user
+        try:
+            user = CustomUser.objects.create_user(**validated_data)
+            return user
+        except IntegrityError as e:
+            print("e",e)
+            if 'unique constraint' in str(e).lower():
+                raise serializers.ValidationError({'error': 'user with this email or mobile already exists.'})
+            else:
+                raise serializers.ValidationError({'error': 'Unable to create user.'})
 
 class LoginSerializer(serializers.Serializer):
     email_or_mobile = serializers.CharField()

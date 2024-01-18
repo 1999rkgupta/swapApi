@@ -19,6 +19,19 @@ class SignUpView(generics.CreateAPIView):
     serializer_class = UserSerializer
     permission_classes = [permissions.AllowAny]
 
+    def perform_create(self, serializer):
+        user = serializer.save()
+
+        # Customize the response message
+        response_data = {
+            'message': 'User {user.name} created successfully!',
+            'name': user.name,
+            'email': user.email,
+            # Include any other relevant information
+        }
+
+        return Response(response_data, status=status.HTTP_201_CREATED)
+
 class LoginView(generics.CreateAPIView):
     serializer_class = LoginSerializer
     permission_classes = [permissions.AllowAny]
