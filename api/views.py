@@ -5,6 +5,9 @@ from django.utils import timezone  # Add this import line
 from .models import CustomUser
 from .serializers import UserSerializer, LoginSerializer
 from rest_framework.views import APIView
+from knox.views import LoginView as KnoxLoginView
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 
 class DefaultAPIView(APIView):
@@ -16,6 +19,19 @@ class SignUpView(generics.CreateAPIView):
     serializer_class = UserSerializer
     permission_classes = [permissions.AllowAny]
 
+    def perform_create(self, serializer):
+        user = serializer.save()
+
+        # Customize the response message
+        response_data = {
+            'message': 'User {user.name} created successfully!',
+            'name': user.name,
+            'email': user.email,
+            # Include any other relevant information
+        }
+
+        return Response(response_data, status=status.HTTP_201_CREATED)
+
 class LoginView(generics.CreateAPIView):
     serializer_class = LoginSerializer
     permission_classes = [permissions.AllowAny]
@@ -25,10 +41,18 @@ class LoginView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
 
-        # Use the correct user model for AuthToken creation
-        token, _ = AuthToken.objects.create(CustomUser.objects.get(email=user.email))
+        # Update last_login
+        user.last_login = timezone.now()
+        user.save()
 
-        return Response({'user': UserSerializer(user).data, 'token': token})
+        # Generate JWT tokens
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+
+        # Store login history (you may need to adapt this based on your model)
+        user.log_login_history(access_token, request.META.get('REMOTE_ADDR'))
+
+        return Response({'user': UserSerializer(user).data, 'access_token': access_token})
     
 class UpdateUserView(generics.UpdateAPIView):
     queryset = CustomUser.objects.all()
@@ -79,3 +103,14 @@ class DeleteUserView(generics.DestroyAPIView):
 
     def get_object(self):
         return self.request.user
+    
+
+class GetUserView(generics.RetrieveAPIView):
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        serializer = self.serializer_class(user)
+        return Response(serializer.data)
