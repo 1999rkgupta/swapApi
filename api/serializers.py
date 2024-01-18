@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import CustomUser
-from django.db import models  
+from django.contrib.auth import authenticate
+from .backends import EmailOrMobileBackend
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -20,13 +21,22 @@ class LoginSerializer(serializers.Serializer):
         email_or_mobile = data.get('email_or_mobile')
         password = data.get('password')
 
-        user = CustomUser.objects.filter(
-            models.Q(email=email_or_mobile) | models.Q(mobile=email_or_mobile)
-        ).first()
+        # Use the custom authentication backend
+        user = EmailOrMobileBackend().authenticate(request=self.context.get('request'), email_or_mobile=email_or_mobile, password=password)
 
-        if user and user.check_password(password):
-            data['user'] = user
-        else:
-            raise serializers.ValidationError("Invalid credentials")
+        if not user:
+            # Check whether the email or mobile is wrong
+            if not EmailOrMobileBackend().user_exists(email_or_mobile):
+                raise serializers.ValidationError({'error': 'Wrong email or mobile'})
 
+            # Check whether the password is wrong
+            raise serializers.ValidationError({'error': 'Invalid credentials'})
+
+        data['user'] = user
+        return data
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Exclude the password field from the response
+        data.pop('password', None)
         return data
