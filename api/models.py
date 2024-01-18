@@ -1,5 +1,14 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
+from django.utils import timezone
+
+
+class LoginHistory(models.Model):
+    user = models.ForeignKey('CustomUser', on_delete=models.CASCADE)
+    access_token = models.CharField(max_length=255)
+    login_timestamp = models.DateTimeField(default=timezone.now)
+    ip_address = models.GenericIPAddressField()
+
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -35,3 +44,24 @@ class CustomUser(AbstractBaseUser):
 
     def __str__(self):
         return self.email
+    
+    def user_exists(self, email_or_mobile):
+        return (
+            self.objects.filter(email=email_or_mobile).exists() or
+            self.objects.filter(mobile=email_or_mobile).exists()
+        )
+
+    def log_login_history(self, access_token, ip_address):
+        # Get the 5 most recent login history records
+        recent_logins = self.loginhistory_set.order_by('-login_timestamp')[:4]
+
+        # Create a new login history entry
+        login_history = LoginHistory.objects.create(
+            user=self,
+            access_token=access_token,
+            ip_address=ip_address
+        )
+
+        # Link the new entry to the user
+        recent_logins = [login_history] + list(recent_logins)
+        self.loginhistory_set.set(recent_logins)
