@@ -1,6 +1,5 @@
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
-from knox.models import AuthToken
 from django.utils import timezone  # Add this import line
 from .models import CustomUser
 from .serializers import UserSerializer, LoginSerializer
