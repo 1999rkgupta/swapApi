@@ -1,0 +1,15 @@
+{
+  "builds": [
+    {
+      "src": "swapApi/wsgi.py",
+      "use": "@vercel/python",
+      "config": { "maxLambdaSize": "20mb", "runtime": "python3" }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "swapApi/wsgi.py"
+    }
+  ]
+}
