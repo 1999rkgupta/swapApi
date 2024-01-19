@@ -3,7 +3,7 @@
     {
       "src": "swapApi/wsgi.py",
       "use": "@vercel/python",
-      "config": { "maxLambdaSize": "20mb", "runtime": "python3" }
+      "config": { "maxLambdaSize": "20mb", "runtime": "python3.9" }
     }
   ],
   "routes": [
