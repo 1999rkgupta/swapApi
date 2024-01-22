@@ -16,7 +16,7 @@ SECRET_KEY = 'django-insecure-(=1!#vc(d9i_l1al@bcalva48ud)c_ob8lmdepna52-c8-*xx_
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['.vercel.app']
+ALLOWED_HOSTS = []
 
 APPEND_SLASH = False
 
@@ -31,10 +31,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'api',
     'rest_framework',
-    'rest_framework.authtoken',
-    'corsheaders',
     'knox',
-    'rest_framework_simplejwt',
 ]
 
 MIDDLEWARE = [
@@ -53,9 +50,7 @@ ROOT_URLCONF = 'swapApi.urls'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework.authentication.TokenAuthentication',
         'knox.auth.TokenAuthentication',
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
 }
 
@@ -109,7 +104,7 @@ WSGI_APPLICATION = 'swapApi.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'swapProject',
+        'NAME': 'swapAPI',
         'USER': 'qsp',
         'PASSWORD': 'ranjan',
         'HOST': 'localhost',

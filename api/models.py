@@ -1,67 +1,35 @@
+from django.contrib.auth.models import AbstractUser, Group, Permission
 from django.db import models
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
-from django.utils import timezone
 
-
-class LoginHistory(models.Model):
-    user = models.ForeignKey('CustomUser', on_delete=models.CASCADE)
-    access_token = models.CharField(max_length=255)
-    login_timestamp = models.DateTimeField(default=timezone.now)
-    ip_address = models.GenericIPAddressField()
-
-
-class CustomUserManager(BaseUserManager):
-    def create_user(self, email, password=None, **extra_fields):
-        if not email:
-            raise ValueError('The Email field must be set')
-        email = self.normalize_email(email)
-        user = self.model(email=email, **extra_fields)
-        user.set_password(password)
-        user.save(using=self._db)
-        return user
-
-    def create_superuser(self, email, password=None, **extra_fields):
-        extra_fields.setdefault('is_staff', True)
-        extra_fields.setdefault('is_superuser', True)
-        return self.create_user(email, password, **extra_fields)
-
-class CustomUser(AbstractBaseUser):
-    name = models.CharField(max_length=255)
-    city = models.CharField(max_length=255)
+class User(AbstractUser):
+    name = models.CharField(max_length=100)
+    city = models.CharField(max_length=100)
     email = models.EmailField(unique=True)
-    mobile = models.CharField(max_length=15, unique=True)
-    last_login = models.DateTimeField(null=True, blank=True)
+    mobile = models.CharField(max_length=20, unique=True)
+    password = models.CharField(max_length=250)
+    last_login = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    role = models.IntegerField()
+    role = models.CharField(max_length=100)
+    id = models.AutoField(primary_key=True)
 
-    # Add other fields as needed
+    groups = models.ManyToManyField(
+        Group,
+        verbose_name='groups',
+        blank=True,
+        related_name='custom_user_set',
+        related_query_name='user'
+    )
+    user_permissions = models.ManyToManyField(
+        Permission,
+        verbose_name='user permissions',
+        blank=True,
+        related_name='custom_user_set',
+        related_query_name='user'
+    )
 
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['name', 'mobile']
-
-    objects = CustomUserManager()
+    REQUIRED_FIELDS = []
 
     def __str__(self):
-        return self.email
-    
-    def user_exists(self, email_or_mobile):
-        return (
-            self.objects.filter(email=email_or_mobile).exists() or
-            self.objects.filter(mobile=email_or_mobile).exists()
-        )
-
-    def log_login_history(self, access_token, ip_address):
-        # Get the 5 most recent login history records
-        recent_logins = self.loginhistory_set.order_by('-login_timestamp')[:4]
-
-        # Create a new login history entry
-        login_history = LoginHistory.objects.create(
-            user=self,
-            access_token=access_token,
-            ip_address=ip_address
-        )
-
-        # Link the new entry to the user
-        recent_logins = [login_history] + list(recent_logins)
-        self.loginhistory_set.set(recent_logins)
+        return self.name
