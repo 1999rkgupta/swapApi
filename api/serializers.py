@@ -1,50 +1,59 @@
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import serializers
-from .models import CustomUser
+from .models import User
 from django.contrib.auth import authenticate
-from .backends import EmailOrMobileBackend
-from django.db import IntegrityError
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
-        model = CustomUser
-        fields = '__all__'
-        extra_kwargs = {'password': {'write_only': True}}
+        model = User
+        fields = ["email", "name", "id", "avatar"]
 
-    def create(self, validated_data):
-        try:
-            user = CustomUser.objects.create_user(**validated_data)
+class RegisterUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["email", "name", "password"]
+
+class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+
+        # Add custom claims to the token
+        user = self.user
+        data['email'] = user.email
+        data['avatar'] = user.avatar.url
+        data['is_staff'] = user.is_staff
+        data['name'] = user.name
+
+        return data
+
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        return token
+
+    def validate_email_or_mobile(self, email_or_mobile, password):
+        user = None
+
+        # Check if the input is an email
+        if '@' in email_or_mobile:
+            user = User.objects.filter(email=email_or_mobile).first()
+        else:
+            # Assuming it's a mobile number, adjust this logic based on your actual implementation
+            user = User.objects.filter(mobile=email_or_mobile).first()
+
+        if user and user.check_password(password):
             return user
-        except IntegrityError as e:
-            print("e",e)
-            if 'unique constraint' in str(e).lower():
-                raise serializers.ValidationError({'error': 'user with this email or mobile already exists.'})
-            else:
-                raise serializers.ValidationError({'error': 'Unable to create user.'})
+        return None
 
-class LoginSerializer(serializers.Serializer):
-    email_or_mobile = serializers.CharField()
-    password = serializers.CharField()
+    def validate(self, attrs):
+        email_or_mobile = attrs.get('email_or_mobile', None)
+        password = attrs.get('password', None)
 
-    def validate(self, data):
-        email_or_mobile = data.get('email_or_mobile')
-        password = data.get('password')
+        if email_or_mobile and password:
+            user = self.validate_email_or_mobile(email_or_mobile, password)
 
-        # Use the custom authentication backend
-        user = EmailOrMobileBackend().authenticate(request=self.context.get('request'), email_or_mobile=email_or_mobile, password=password)
+            if user:
+                attrs['user'] = user
+                return super().validate(attrs)
 
-        if not user:
-            # Check whether the email or mobile is wrong
-            if not EmailOrMobileBackend().user_exists(email_or_mobile):
-                raise serializers.ValidationError({'error': 'Wrong email or mobile'})
-
-            # Check whether the password is wrong
-            raise serializers.ValidationError({'error': 'Invalid credentials'})
-
-        data['user'] = user
-        return data
-
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        # Exclude the password field from the response
-        data.pop('password', None)
-        return data
+        raise serializers.ValidationError("Unable to log in with provided credentials.")

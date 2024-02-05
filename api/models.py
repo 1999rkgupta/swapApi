@@ -1,67 +1,69 @@
 from django.db import models
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
 from django.utils import timezone
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 
-
-class LoginHistory(models.Model):
-    user = models.ForeignKey('CustomUser', on_delete=models.CASCADE)
-    access_token = models.CharField(max_length=255)
-    login_timestamp = models.DateTimeField(default=timezone.now)
-    ip_address = models.GenericIPAddressField()
-
+class Email(models.Model):
+    user = models.OneToOneField('User', on_delete=models.CASCADE, related_name='user_email')
+    email = models.EmailField(unique=True)
 
 class CustomUserManager(BaseUserManager):
-    def create_user(self, email, password=None, **extra_fields):
+    def _create_user(self, email, password=None, **extra_fields):
         if not email:
-            raise ValueError('The Email field must be set')
+            raise ValueError("The Email field must be set")
+        
         email = self.normalize_email(email)
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
 
+    def create_user(self, email, password=None, **extra_fields):
+        extra_fields.setdefault('is_staff', False)
+        extra_fields.setdefault('is_superuser', False)
+        return self._create_user(email, password, **extra_fields)
+
     def create_superuser(self, email, password=None, **extra_fields):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
-        return self.create_user(email, password, **extra_fields)
+        return self._create_user(email, password, **extra_fields)
 
-class CustomUser(AbstractBaseUser):
-    name = models.CharField(max_length=255)
-    city = models.CharField(max_length=255)
-    email = models.EmailField(unique=True)
-    mobile = models.CharField(max_length=15, unique=True)
-    last_login = models.DateTimeField(null=True, blank=True)
+class User(AbstractBaseUser, PermissionsMixin):
+    id = models.AutoField(primary_key=True)
+    email = models.OneToOneField(Email, on_delete=models.CASCADE, related_name='user_profile')
+    password = models.CharField(max_length=128)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    role = models.IntegerField()
-
-    # Add other fields as needed
-
-    USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['name', 'mobile']
+    deleted_at = models.DateTimeField(blank=True, null=True)
+    is_staff = models.BooleanField(default=False)
+    avatar = models.ImageField(default="avatar.png", blank=True, null=True)
 
     objects = CustomUserManager()
+    USERNAME_FIELD = "email"
+    REQUIRED_FIELDS = []
 
-    def __str__(self):
-        return self.email
-    
-    def user_exists(self, email_or_mobile):
-        return (
-            self.objects.filter(email=email_or_mobile).exists() or
-            self.objects.filter(mobile=email_or_mobile).exists()
-        )
+    class Meta:
+        ordering = ["-created_at"]
 
-    def log_login_history(self, access_token, ip_address):
-        # Get the 5 most recent login history records
-        recent_logins = self.loginhistory_set.order_by('-login_timestamp')[:4]
+class Mobile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='user_mobile')
+    mobile = models.CharField(max_length=15, unique=True)
 
-        # Create a new login history entry
-        login_history = LoginHistory.objects.create(
-            user=self,
-            access_token=access_token,
-            ip_address=ip_address
-        )
+class Token(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='user_token')
+    token = models.CharField(max_length=255, blank=True, null=True)
 
-        # Link the new entry to the user
-        recent_logins = [login_history] + list(recent_logins)
-        self.loginhistory_set.set(recent_logins)
+class IPAddress(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='user_ip_address')
+    ip_address = models.GenericIPAddressField()
+
+class LoginTime(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='user_login_time')
+    login_time = models.DateTimeField(default=timezone.now)
+
+class Name(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='user_name')
+    name = models.CharField(max_length=100)
+
+class City(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='user_city')
+    city = models.CharField(max_length=100)

@@ -1,12 +1,16 @@
 
 from django.urls import path
-from .views import SignUpView, LoginView, UpdateUserView, DeleteUserView, DefaultAPIView, GetUserView
+from .views import register, LoginView, edit_profile, delete_user, DefaultAPIView, get_solo_user,search
 
 urlpatterns = [
     path('', DefaultAPIView.as_view(), name='default-api'),
-    path('api/v1/signup', SignUpView.as_view(), name='signup'),
-    path('api/v1/login', LoginView.as_view(), name='login'),
-    path('api/v1/update_user', UpdateUserView.as_view(), name='update-user'),
-    path('api/v1/delete_user', DeleteUserView.as_view(), name='delete-user'),
-    path('api/v1/get_user', GetUserView.as_view(), name='get-user'),
+    path('api/v1/search/', search, name='search'),
+    path('api/v1/signup', register, name='signup'),
+    path('api/v1/login', LoginView, name='login'),
+    path('api/v1/get_user', get_solo_user, name='get-authenticated-user'),
+    # path('token/', views.MyTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    # path('refresh/', TokenRefreshView.as_view()),
+    path('api/v1/update_user', edit_profile, name='update-user'),
+    path('api/v1/delete_user', delete_user, name='delete-user'),
+    # path('api/v1/get_user', GetUserView.as_view(), name='get-user'),
 ]

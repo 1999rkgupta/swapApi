@@ -1,115 +1,94 @@
-from rest_framework import generics, permissions, status
+from rest_framework_simplejwt.views import TokenObtainPairView
+from django.contrib.auth.hashers import make_password
 from rest_framework.response import Response
-from django.utils import timezone  # Add this import line
-from .models import CustomUser
-from .serializers import UserSerializer, LoginSerializer
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
+from django.db import IntegrityError
 from rest_framework.views import APIView
-from knox.views import LoginView as KnoxLoginView
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.authentication import JWTAuthentication
+
+
+from .models import User
+from .serializers import RegisterUserSerializer, MyTokenObtainPairSerializer, UserSerializer
+
 
 
 class DefaultAPIView(APIView):
     def get(self, request):
         return Response({"message": "API is running!"}, status=status.HTTP_200_OK)
 
-class SignUpView(generics.CreateAPIView):
-    queryset = CustomUser.objects.all()
-    serializer_class = UserSerializer
-    permission_classes = [permissions.AllowAny]
-
-    def perform_create(self, serializer):
-        user = serializer.save()
-
-        # Customize the response message
-        response_data = {
-            'message': 'User {user.name} created successfully!',
-            'name': user.name,
-            'email': user.email,
-            # Include any other relevant information
-        }
-
-        return Response(response_data, status=status.HTTP_201_CREATED)
-
-class LoginView(generics.CreateAPIView):
-    serializer_class = LoginSerializer
-    permission_classes = [permissions.AllowAny]
-
-    def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data['user']
-
-        # Update last_login
-        user.last_login = timezone.now()
-        user.save()
-
-        # Generate JWT tokens
-        refresh = RefreshToken.for_user(user)
-        access_token = str(refresh.access_token)
-
-        # Store login history (you may need to adapt this based on your model)
-        user.log_login_history(access_token, request.META.get('REMOTE_ADDR'))
-
-        return Response({'user': UserSerializer(user).data, 'access_token': access_token})
-    
-class UpdateUserView(generics.UpdateAPIView):
-    queryset = CustomUser.objects.all()
-    serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def update(self, request, *args, **kwargs):
-        user_id = request.data.get('userid')
-
-        if not user_id:
-            return Response({'detail': 'User ID is required in the request body.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Ensure the user making the request matches the provided user ID
-        if self.request.user.id != int(user_id):
-            return Response({'detail': 'Invalid user ID'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Perform the update
-        partial = kwargs.pop('partial', False)
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_solo_user(request, pk):
+    try:
+        user = User.objects.get(pk=pk)
+        serializer = UserSerializer(user)
         return Response(serializer.data)
+    except User.DoesNotExist:
+        return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    def perform_update(self, serializer):
-        serializer.save(updated_at=timezone.now())
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def edit_profile(request, email):
+    try:
+        user = User.objects.get(email=email)
+    except User.DoesNotExist:
+        return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    def get_object(self):
-        return self.request.user
+    if request.user == user:
+        serializer = UserSerializer(user, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    else:
+        return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
 
-class DeleteUserView(generics.DestroyAPIView):
-    queryset = CustomUser.objects.all()
-    serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticated]
+@api_view(['GET'])
+def search(request):
+    query = request.query_params.get('query', '')
+    users = User.objects.filter(email__icontains=query)
+    serializer = UserSerializer(users, many=True)
+    return Response({'users': serializer.data})
 
-    def destroy(self, request, *args, **kwargs):
-        user_id = request.data.get('userid')
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_user(request, pk):
+    try:
+        user = User.objects.get(pk=pk)
+    except User.DoesNotExist:
+        return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        if not user_id:
-            return Response({'detail': 'User ID is required in the request body.'}, status=status.HTTP_400_BAD_REQUEST)
+    if request.user.is_staff:
+        user.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    else:
+        return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
 
-        # Ensure the user making the request matches the provided user ID
-        if self.request.user.id != int(user_id):
-            return Response({'detail': 'Invalid user ID'}, status=status.HTTP_400_BAD_REQUEST)
-
-        return super().destroy(request, *args, **kwargs)
-
-    def get_object(self):
-        return self.request.user
-    
-
-class GetUserView(generics.RetrieveAPIView):
-    serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    authentication_classes = [JWTAuthentication]
-
-    def get(self, request, *args, **kwargs):
-        user = request.user
-        serializer = self.serializer_class(user)
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_users(request):
+    if request.user.is_staff:
+        users = User.objects.exclude(email='admin@admin.com')
+        serializer = UserSerializer(users, many=True)
         return Response(serializer.data)
+    else:
+        return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+
+@api_view(['POST'])
+def register(request):
+    serializer = RegisterUserSerializer(data=request.data)
+    try:
+        if serializer.is_valid():
+            serializer.save(password=make_password(request.data['password']))
+            return Response({"message": "Registration successful"}, status=status.HTTP_201_CREATED)
+    except IntegrityError as e:
+        # Check if the error is due to unique constraint violation
+        if "unique constraint" in str(e):
+            return Response({"error": "Email already registered"}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class LoginView(TokenObtainPairView):
+    serializer_class = MyTokenObtainPairSerializer
